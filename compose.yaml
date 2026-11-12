@@ -1,0 +1,87 @@
+name: quiel-contactos
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  n8n:
+    image: docker.n8n.io/n8nio/n8n:2.46.7
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${N8N_PORT:-5678}:5678"
+    environment:
+      TZ: America/Panama
+      GENERIC_TIMEZONE: America/Panama
+      N8N_ENCRYPTION_KEY: ${N8N_ENCRYPTION_KEY:?Define N8N_ENCRYPTION_KEY en .env}
+    volumes:
+      - n8n_data:/home/node/.n8n
+    logging: *logging
+
+  evolution_api:
+    image: evoapicloud/evolution-api:v2.3.7
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${EVOLUTION_PORT:-8080}:8080"
+    environment:
+      TZ: America/Panama
+      SERVER_URL: http://localhost:${EVOLUTION_PORT:-8080}
+      AUTHENTICATION_API_KEY: ${AUTHENTICATION_API_KEY:?Define AUTHENTICATION_API_KEY en .env}
+      DATABASE_ENABLED: "true"
+      DATABASE_PROVIDER: postgresql
+      DATABASE_CONNECTION_URI: postgresql://evolution:${POSTGRES_PASSWORD:?Define POSTGRES_PASSWORD en .env}@postgres:5432/evolution?schema=public
+      DATABASE_CONNECTION_CLIENT_NAME: quiel_contactos
+      DATABASE_SAVE_DATA_INSTANCE: "true"
+      DATABASE_SAVE_DATA_NEW_MESSAGE: "true"
+      DATABASE_SAVE_MESSAGE_UPDATE: "true"
+      DATABASE_SAVE_DATA_CONTACTS: "true"
+      DATABASE_SAVE_DATA_CHATS: "true"
+      CACHE_REDIS_ENABLED: "true"
+      CACHE_REDIS_URI: redis://redis:6379/6
+      CACHE_REDIS_PREFIX_KEY: quiel_contactos
+      CACHE_REDIS_SAVE_INSTANCES: "true"
+      CACHE_LOCAL_ENABLED: "false"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - evolution_instances:/evolution/instances
+    logging: *logging
+
+  postgres:
+    image: postgres:15
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: evolution
+      POSTGRES_DB: evolution
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Define POSTGRES_PASSWORD en .env}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+    logging: *logging
+
+  redis:
+    image: redis:7
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+    logging: *logging
+
+volumes:
+  n8n_data:
+  evolution_instances:
+  postgres_data:
+  redis_data:

@@ -1,0 +1,6 @@
+LISTA
+con_web
+Negocio de ejemplo,50760000000,contacto@example.com
+Otro negocio,,correo@example.com
+sin_web
+Negocio sin web,50760000001,

@@ -1,0 +1,598 @@
+{
+  "name": "QuielStudio cont",
+  "nodes": [
+    {
+      "parameters": {
+        "jsCode": "const d = $json.body.data;\nconst texto = d.message?.conversation || d.message?.extendedTextMessage?.text || '';\nconst lineas = texto.split('\\n').map(l => l.trim()).filter(Boolean);\n\nlet tipo = null;\nconst out = [];\n\nfor (const l of lineas.slice(1)) {\n  const t = l.toLowerCase().replace(/\\s+/g, '_');\n  if (t === 'con_web' || t === 'sin_web') { tipo = t; continue; }\n\n  const [nombre = '', tel = '', email = ''] = l.split(',').map(s => s.trim());\n  const telefono = tel.replace(/\\D/g, '');\n  const emailOk = /^\\S+@\\S+\\.\\S+$/.test(email);\n  const valido = tipo && nombre && (telefono.length >= 8 || emailOk);\n\n  let canal = 'invalido';\n  if (valido) canal = (telefono && emailOk) ? 'ambos' : telefono ? 'whatsapp' : 'email';\n\n  out.push({ json: { nombre, telefono, email: emailOk ? email : '', tipo: tipo || '', canal, lineaOriginal: l } });\n}\n\nreturn out;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        48,
+        -288
+      ],
+      "id": "43811444-f0c5-4a82-b757-8ac28e51320f",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "whatsapp-lista",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.2,
+      "position": [
+        -336,
+        -272
+      ],
+      "id": "5c25f63e-2559-4984-8bad-16dac5fa227c",
+      "name": "trigger ",
+      "webhookId": "88efff7e-a2f1-43b6-9106-caf07a1412be"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        -576,
+        0
+      ],
+      "id": "f69becd0-eedb-44f8-b3f2-a22c37346f12",
+      "name": "Loop Over Items"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 4
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ ['whatsapp','ambos'].includes($json.canal) }}",
+                    "rightValue": "={{ ['email','ambos'].includes($json.canal) }}",
+                    "operator": {
+                      "type": "boolean",
+                      "operation": "true",
+                      "singleValue": true
+                    },
+                    "id": "2641e3ec-d51c-4191-9393-00ebaba9c7f4"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "whatsapp"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 4
+                },
+                "conditions": [
+                  {
+                    "id": "f75e8931-ef90-465a-9c68-84346bf041e9",
+                    "leftValue": "={{ ['email','ambos'].includes($json.canal) }}",
+                    "rightValue": "={{ ['email','ambos'].includes($json.canal) }}",
+                    "operator": {
+                      "type": "boolean",
+                      "operation": "true",
+                      "singleValue": true
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Email"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra",
+          "allMatchingOutputs": true
+        }
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.5,
+      "position": [
+        320,
+        0
+      ],
+      "id": "c4292019-d9b8-4fd2-b145-fa0653ec228c",
+      "name": "Switch1"
+    },
+    {
+      "parameters": {
+        "jsCode": "const ctx = $('Loop Over Items').item.json;\nconst invalido = ctx.canal === 'invalido';\nconst hayError = invalido || !!$json.error;\n\nreturn {\n  json: {\n    nombre: ctx.nombre || '(sin nombre)',\n    tipo: ctx.tipo,\n    canal: invalido ? 'invalido'\n         : $prevNode.name.includes('Gmail') ? 'email' : 'whatsapp',\n    estado: hayError ? 'error' : 'ok',\n    detalle: invalido\n      ? `Línea inválida: \"${ctx.lineaOriginal}\"`\n      : hayError ? ($json.error?.message || $json.error || 'Error desconocido') : 'enviado',\n    fecha: new Date().toISOString()\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        848,
+        -160
+      ],
+      "id": "068344ca-3607-401a-b42a-c03cd515c774",
+      "name": "Code in JavaScript1"
+    },
+    {
+      "parameters": {
+        "amount": 2
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        848,
+        80
+      ],
+      "id": "d16a3a01-a6b6-4155-86cf-f0a46241631d",
+      "name": "Wait",
+      "webhookId": "a4292513-3d99-43ea-a026-7cd2544a30af"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        -176,
+        304
+      ],
+      "id": "40bf96e5-f452-4a95-b95c-fa2f111a72b9",
+      "name": "Error Trigger"
+    },
+    {
+      "parameters": {
+        "jsCode": "const e = $input.first().json;\nconst err = e.execution.error?.message || 'Sin detalle';\n\nlet accion = 'Revisa la ejecución en el enlace y reintenta.';\nif (/401|403|token|credential|unauthorized/i.test(err))\n  accion = 'Renueva o reconecta la credencial del nodo.';\nelse if (/429|rate|limit|quota/i.test(err))\n  accion = 'Límite de envíos alcanzado. Espera y reintenta más despacio.';\nelse if (/ENOTFOUND|ECONN|timeout/i.test(err))\n  accion = 'Problema de red. Verifica que Evolution y n8n estén activos.';\n\nconst msg = `🚨 *Error en el workflow*\\n` +\n  `Workflow: ${e.workflow.name}\\n` +\n  `Nodo: ${e.execution.lastNodeExecuted}\\n` +\n  `Error: ${err}\\n` +\n  `Hora: ${new Date().toLocaleString('es-PA', { timeZone: 'America/Panama' })}\\n` +\n  `Ejecución: ${e.execution.url}\\n\\n` +\n  `⚠️ *Acción recomendada*\\n${accion}`;\n\nreturn [{ json: { mensaje: msg } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        48,
+        304
+      ],
+      "id": "512aba5a-244c-4706-ac8e-2d1fbd7a15c8",
+      "name": "Code in JavaScript3"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://evolution_api:8080/message/sendText/bot",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"number\": \"CONFIGURA_EL_GRUPO@g.us\",\n  \"text\": {{ JSON.stringify($json.mensaje) }}\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        272,
+        304
+      ],
+      "id": "d526c9ca-9ae4-4498-9ee6-ce0b1baa1209",
+      "name": "HTTP Request2"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 4
+          },
+          "conditions": [
+            {
+              "id": "7c3771d5-40ad-4dc1-9661-1a845d5b44da",
+              "leftValue": "={{ $json.body.data.key.remoteJid }}",
+              "rightValue": "CONFIGURA_EL_GRUPO@g.us",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            },
+            {
+              "id": "652d19a9-ada9-4c56-86f6-af686df4cf5c",
+              "leftValue": "={{ $json.body.data.message.conversation || $json.body.data.message.extendedTextMessage?.text || '' }}",
+              "rightValue": "LISTA",
+              "operator": {
+                "type": "string",
+                "operation": "startsWith"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {
+          "ignoreCase": true
+        }
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.4,
+      "position": [
+        -176,
+        -272
+      ],
+      "id": "3785c7b3-0ba0-48c5-96fe-963ce102fb3b",
+      "name": "if: chat LISTA "
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 4
+          },
+          "conditions": [
+            {
+              "id": "59de6fdd-795f-4189-8e36-4369f1a22e9b",
+              "leftValue": "={{ $json.tipo }}",
+              "rightValue": "con_web",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.4,
+      "position": [
+        -96,
+        16
+      ],
+      "id": "66f9d189-5d31-4735-9ea3-d820042bb9ef",
+      "name": "if: tiene web"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://evolution_api:8080/message/sendText/bot",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"number\": \"{{ $json.telefono }}\",\n  \"text\": {{ JSON.stringify($json.mensaje) }}\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        560,
+        -144
+      ],
+      "id": "0302b160-d151-4675-bad8-80b8fee7945e",
+      "name": "whatsapp",
+      "retryOnFail": true,
+      "maxTries": 2,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "fromEmail": "Quiel Studio <correo@example.com>",
+        "toEmail": "={{ $json.email }}",
+        "subject": "={{ $json.asunto }}",
+        "emailFormat": "text",
+        "options": {},
+        "text": "={{ $json.mensaje }}"
+      },
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        560,
+        16
+      ],
+      "id": "e5106322-7176-4f68-8377-f6a988f0e67f",
+      "name": "Email",
+      "webhookId": "e8a8524b-0572-4b5b-ac4a-cb54cfa6aa1c",
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all().map(i => i.json);\nconst ok = items.filter(i => i.estado === 'ok');\nconst fail = items.filter(i => i.estado === 'error');\nconst hora = new Date().toLocaleString('es-PA', { timeZone: 'America/Panama' });\n\nlet msg = `📊 *Reporte de envíos* (${hora})\\n`;\nmsg += `Total: ${items.length} | ✅ ${ok.length} | ❌ ${fail.length}\\n\\n`;\n\nif (ok.length) {\n  msg += `✅ *Exitosos*\\n` + ok.map(i => `• ${i.nombre} (${i.canal}, ${i.tipo})`).join('\\n') + '\\n\\n';\n}\n\nif (fail.length) {\n  msg += `❌ *Con problemas*\\n` + fail.map(i => `• ${i.nombre} (${i.canal}): ${i.detalle}`).join('\\n') + '\\n\\n';\n  msg += `⚠️ *Acciones sugeridas*\\n1. Verifica que el número o correo sea válido.\\n2. Revisa credenciales y conexión de Evolution.\\n3. Reenvía solo los fallidos.`;\n} else {\n  msg += `Todo salió sin incidencias.`;\n}\n\nreturn [{ json: { mensaje: msg } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -400,
+        -96
+      ],
+      "id": "4852b92c-1773-4c88-820d-88a97c97f24f",
+      "name": "armar resumen"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://evolution_api:8080/message/sendText/bot",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"number\": \"CONFIGURA_EL_GRUPO@g.us\",\n  \"text\": {{ JSON.stringify($json.mensaje) }}\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        -256,
+        -96
+      ],
+      "id": "31f73a64-162c-41c2-9b00-596bef302d9d",
+      "name": "reporte al grupo"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "4ec15c7f-6930-47a5-8be1-3ccc836618a3",
+              "name": "mensaje",
+              "value": "=Hola {{ $json.nombre }}, soy Alejandro de Quiel Studio. Vi tu página web. Además de crear webs, nos encargamos del mantenimiento de páginas existentes, aunque no las hayamos hecho nosotros: cambios, velocidad, respaldos y seguridad. Detalles: http://quielstudio.com.",
+              "type": "string"
+            },
+            {
+              "id": "198a5afd-add9-4831-9bd2-7d8509b90f55",
+              "name": "asunto",
+              "value": "Mantenimiento y mejora de tu página web",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        80,
+        -64
+      ],
+      "id": "ba9b4fd5-8a3f-463f-90f5-9d033e617fff",
+      "name": "con web"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "fe61f0b1-5aa0-4a2f-8c7f-3db08e855124",
+              "name": "mensaje",
+              "value": "=Hola {{ $json.nombre }} , soy Alejandro de Quiel Studio. Vi tu página web . Además de crear webs, nos encargamos del mantenimiento de páginas existentes, aunque no las hayamos hecho nosotros: cambios, velocidad, respaldos y seguridad. Detalles: http://quielstudio.com .",
+              "type": "string"
+            },
+            {
+              "id": "b0280a4b-346d-4626-8016-d2d47b8e528e",
+              "name": "asunto",
+              "value": "creacion web ",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        80,
+        112
+      ],
+      "id": "67609c52-aa54-4da2-96ef-aee86d31cff0",
+      "name": "sin web"
+    }
+  ],
+  "connections": {
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "trigger ": {
+      "main": [
+        [
+          {
+            "node": "if: chat LISTA ",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items": {
+      "main": [
+        [
+          {
+            "node": "armar resumen",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "if: tiene web",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch1": {
+      "main": [
+        [
+          {
+            "node": "whatsapp",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript1": {
+      "main": [
+        [
+          {
+            "node": "Wait",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Error Trigger": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript3": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "if: chat LISTA ": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "if: tiene web": {
+      "main": [
+        [
+          {
+            "node": "con web",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "sin web",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "whatsapp": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Email": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "armar resumen": {
+      "main": [
+        [
+          {
+            "node": "reporte al grupo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "con web": {
+      "main": [
+        [
+          {
+            "node": "Switch1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "sin web": {
+      "main": [
+        [
+          {
+            "node": "Switch1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "pinData": {},
+  "tags": []
+}

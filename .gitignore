@@ -1,0 +1,32 @@
+# Configuracion privada
+.env
+.env.*
+!.env.example
+compose.json
+compose.override.yaml
+compose.override.yml
+docker-compose.override.yml
+
+# Datos, sesiones y copias completas
+backup/
+backups/
+data/
+n8n_data/
+evolution_instances/
+postgres_data/
+redis_data/
+auth_info/
+*.sqlite
+*.sqlite-*
+*.db
+*.tar
+*.tar.gz
+*.zip
+QuielStudio-para-Windows-*/
+
+# Archivos locales
+node_modules/
+__pycache__/
+*.log
+.DS_Store
+Thumbs.db
